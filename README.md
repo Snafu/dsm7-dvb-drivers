@@ -3,12 +3,12 @@ I'm writing this since it could be helpful to everyone trying to make common USB
 
 Some specs:
 
-- Model: Synology DS720+ 
+- Model: Synology DS1821+ 
 - Arch: x86_64
-- Core Name: Gemini Lake
-- OS: DSM 7.2.1-69057 Update 3
+- Core Name: v1000
+- OS: DSM 7.2.1-69057 Update 5
 - Linux Kernel 4.4.302+
-- The USB-DVB device I'm using is a [**Hauppauge WinTV-dualHD**](https://www.hauppauge.com/pages/products/data_dualhd.html), currently available on Amazon for about €70.
+- The PCI-DVB device I'm using is a DigitalDevices Cine C2 PCIe card 
   - This device is reported to be supported inside the Linux Kernel from 4.17, but the Synology Kernel is 4.4.302+. So, we'll have to compile the kernel modules ourselves.
 
 This guide will use the `media_build` repo from [**Linuxtv**](https://git.linuxtv.org/media_build.git) to compile the kernel modules. This repo backports patches to use more recent devices in legacy kernels. This repo is EOL, but it should work for a myriad of devices, and there are no other alternatives to my knowledge.
@@ -26,7 +26,7 @@ I cannot, and will not, be held responsible for any damage to your Synology.
 
 Moreover, this guide is provided as-is: I can't guarantee that it will work for other architectures, in fact it's known that **there are** architectures that have problems with compiling the kernel modules.
 
-I'm just sharing what worked for me and my Gemini Lake architecture.
+I'm just sharing what worked for me and my v1000 architecture.
 
 ## Prerequisites
 - A Synology NAS with DSM 7 installed
@@ -40,7 +40,7 @@ I chose to do everything in a Docker container, to keep my system clean and tidy
 So I spun up an Ubuntu 22.04 container:
 
 ```bash
-docker run -it --platform linux/amd64 --name dsm7-dvb-build -v <folder>:/export ubuntu:22.04 bash
+docker run -it --platform linux/amd64 --name dsm7-dvb-build -v <folder>:/export ubuntu:latest bash
 ```
    
    where `<folder>` is the path to your actual system you'll use as a bridge between the container and your system.
@@ -68,21 +68,21 @@ On DSM 6 you could find the toolchain [**here**](https://sourceforge.net/project
 
 So you'll have to browse the folders and download the appropriate version for your OS and your architecture. Once downloaded, transfer them to your container and put them in (create the folder, change for your architecture):
 ```bash
-/compile/Embedded-MediaDrivers/dl/SYNO-Geminilake
+/compile/Embedded-MediaDrivers/dl/SYNO-V1000
 ```
 - You can also use the wget in the container to download the files directly in the right folder.
 
 ## GPL Sources
 Browse again the [archive.synology.com/download/ToolChain](https://archive.synology.com/download/ToolChain) folder and download the Synology NAS GPL sources for your architecture. Download the `linux-<kernelversion>.tgz` (in my case `linux-4.4.x.txz`) and transfer it to your container, in:
 ```bash
-/compile/Embedded-MediaDrivers/dl/SYNO-Geminilake
+/compile/Embedded-MediaDrivers/dl/SYNO-V1000
 ```
 - The same wget shortcut applies here too.
 
 
 # Step 3: Configure the tool
 ## Creating the config file
-Enter the folder, and in the `config` subfolder, you'll have to create a file containing the config for your architecture. To create mine, I used the b-rad-NDi one as a base (SYNO-Apollolake.conf) and modified for my Gemini Lake architecture (SYNO-Geminilake.conf). In particular, I did: 
+Enter the folder, and in the `config` subfolder, you'll have to create a file containing the config for your architecture. To create mine, I used the b-rad-NDi one as a base (SYNO-Apollolake.conf) and modified for my v1000 architecture (SYNO-V1000.conf). In particular, I did: 
 
 - find and replace everything from Apollo to Gemini (make sure to replace always with the correct case).
 - Adjust the TOOLCHAIN_LOCATION var at the top of the file to match the Toolchain file name you've downloaded before.
@@ -93,28 +93,29 @@ You can find my modified file in this repo, in the `config` folder.
 
 
 ## Creating the board folder
-Enter the Embedded-MediaDrivers folder and create a new subfolder in the `board` subfolder (mine is SYNO-Geminilake). This folder contains the board-specific patches for the kernel modules. 
+Enter the Embedded-MediaDrivers folder and create a new subfolder in the `board` subfolder (mine is SYNO-V1000). This folder contains the board-specific patches for the kernel modules. 
 
-b-rad-NDi already created one for Apollo Lake, so I just copied it and modified it for Gemini Lake. In his repo there are also other boards, so you can use them as a base for your architecture. On x86_64, it should be pretty straightforward to modify the Apollo Lake one for your architecture. For other architectures, you'll have to do some research.
+b-rad-NDi already created one for Apollo Lake, so I just copied it and modified it for v1000. In his repo there are also other boards, so you can use them as a base for your architecture. On x86_64, it should be pretty straightforward to modify the Apollo Lake one for your architecture. For other architectures, you'll have to do some research.
 
 - You can find my modified folder in this repo, in the `board` folder.
 
 ## Initializing the tool
 I ran:
 ```bash
-./md_builder.sh -i -d SYNO-Geminilake
+./md_builder.sh -i -d SYNO-V1000
 ```
-to initialize the tool. This will create a `SYNO-Geminilake` folder in the `build` folder, containing the extracted kernel sources and toolchain.
+to initialize the tool. This will create a `SYNO-V1000` folder in the `build` folder, containing the extracted kernel sources and toolchain.
 
 # Step 4: Build the Synology Linux kernel
 ## Compile the headers for the downloaded kernel
 I ran:
 ```bash
-./md_builder.sh -B media -d SYNO-Geminilake
+./md_builder.sh -B media -d SYNO-V1000
 ```
 to compile the Synology kernel. This took a bit. If you want to speed up the process, you can edit the `config` file to leverage make multi-threading, but if you're not familiar with it, I suggest you don't and just wait.
 
 ## Manipulating the media_build repo
+This step is not required with the for SYNO-V1000.conf file in this repo.
 in the `build` folder, you'll have now a new folder called `media_build` containing the Linuxtv repo. Go to this folder. Since this repo is EOL and files were deleted, I checked out the last working commit:
 ```bash
 git checkout 0fe857b86addf382f6fd383948bd7736a3201403
@@ -133,7 +134,7 @@ Then, I opened the file `build` and commented out the lines that made the tool c
 	run("make -C linux/ untar", "Untar failed");
 ```
 
-### Extra (Only for Gemini Lake?)
+### Extra (Only for v1000?)
 I had to remove a specific patch in the `media_build/backports` folder, since it was causing the compilation to fail. The patch is `v4.11_vb2_kmap.patch`. 
 
 This patch is just wrong for lots of kernels and has been reverted since (but not in this repo). Don't delete the file, just empty it.
@@ -141,7 +142,7 @@ This patch is just wrong for lots of kernels and has been reverted since (but no
 # Step 5: Compiling the DVB kernel modules
 Now, everything is ready to run the actual compilation:
 ```bash
-./md_builder.sh -B media -d SYNO-Geminilake
+./md_builder.sh -B media -d SYNO-V1000
 ```
 
 This will take a while. Just like before, you can speed up the process by editing the makefiles to leverage make multi-threading.

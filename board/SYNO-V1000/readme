@@ -1,0 +1,13 @@
+This board profile covers all Synology devices using the v1000 architecture.
+
+This includes:
+- DS1621+
+- DS1821+
+- RS1221+
+- DS2422+
+
+
+Kernel modifications:
+- none
+
+
